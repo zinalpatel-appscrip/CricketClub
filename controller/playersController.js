@@ -181,22 +181,19 @@ module.exports = {
             res.send("This team does not exist")
     },
     matchHistory : async (req, res) => {
-        //match HIstory of all players of one team
         
-        const db = await dbConnect('teamDetails')
-        let data = await db.findOne({_id: new mongodb.ObjectId(req.body.teamID)})
+        // const db = await dbConnect('teamDetails')
+        // let data = await db.findOne({_id: new mongodb.ObjectId(req.body.teamID)})
 
-        console.log(data)
-        const subDB = await dbConnect('team'+ data.name)
-        const allPlayers = await subDB.find().toArray()
+        // // console.log(data)
+        // const subDB = await dbConnect('team'+ data.name)
+        // const allPlayers = await subDB.find().toArray()
 
-        for(let i = 0; i < allPlayers.length; i++){
-            const matchDetails = await dbConnect('matchDetails')
-            let data = await matchDetails.findOne({players: new mongodb.ObjectId(req.body.teamID)})
+        const matchDetails = await dbConnect('matchDetails')
+        console.log(req.body.playerID)
+        data = await matchDetails.find({players: {$elemMatch: {'playerID':req.body.playerID}}})
 
-        }
-
-        res.send(allPlayers[0]._id)
+        res.send(data)
 
     }
 }
