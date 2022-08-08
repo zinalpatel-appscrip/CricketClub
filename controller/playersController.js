@@ -181,19 +181,114 @@ module.exports = {
             res.send("This team does not exist")
     },
     matchHistory : async (req, res) => {
+        const db = await dbConnect('teamDetails')
+        let teamData = await db.findOne({_id: new mongodb.ObjectId(req.body.teamID)})
         
-        // const db = await dbConnect('teamDetails')
-        // let data = await db.findOne({_id: new mongodb.ObjectId(req.body.teamID)})
-
-        // // console.log(data)
-        // const subDB = await dbConnect('team'+ data.name)
-        // const allPlayers = await subDB.find().toArray()
-
-        const matchDetails = await dbConnect('matchDetails')
-        console.log(req.body.playerID)
-        data = await matchDetails.find({players: {$elemMatch: {'playerID':req.body.playerID}}})
-
-        res.send(data)
-
+        if(teamData)
+        {
+            const db = await dbConnect('matchDetails')
+            // const playerObjectID = req.body.playerID
+            // console.log(typeof req.body.playerID)
+            let data =await db.aggregate([
+                {
+                    $lookup : {
+                        from: 'team' + teamData.name,
+                        localField: 'players.playerID',
+                        foreignField: '_id',
+                        as: 'matchHistory'
+                    },
+                },
+                {
+                    $match : {
+                        'players.playerID': new mongodb.ObjectId(req.body.playerID),
+                    }   
+                },
+                {$unwind: '$matchHistory'},
+                {
+                    $match: {'matchHistory._id': new mongodb.ObjectId(req.body.playerID)}
+                },
+                {
+                    $project: {
+                        firstTeamId:1,
+                        secondTeamId:1,
+                        venue:1,
+                        date:1,
+                        type:1,
+                        players:1,
+                        score: '$matchHistory.score'
+                    }
+                },
+                {
+                    $group: {
+                        _id : null,
+                        history: { $push : "$$ROOT" },
+                        score: {$addToSet:'$matchHistory.score'}
+                    }
+                }              
+            ]).toArray()
+            res.send(data)
+        }
+        else
+            res.send("This team does not exist")
+    },
+    matchData : async (req, res) => {
+        let currentDate = new Date()
+        const db = await dbConnect('matchDetails')
+        if(req.body.time === 'live')
+        {
+            let liveMatchData =await db.aggregate([
+                {
+                    $match: {
+                        $expr : {
+                            $eq : [currentDate.toISOString().substr(0,10), {$dateToString: {format:"%Y-%m-%d", date:"$date"}}]
+                        },
+                        type: req.body.type,
+                        country: req.body.country
+                    }
+                }
+            ]).toArray()
+            res.send(liveMatchData)
+        }
+        else if(req.body.time === 'past')
+        {
+            let pastMatchData =await db.aggregate([
+                {
+                    $match: {
+                        $expr : {
+                            $lt : [{$dateToString: {format:"%Y-%m-%d", date:"$date"}},currentDate.toISOString().substr(0,10)]
+                        },
+                        type: req.body.type,
+                        country: req.body.country
+                    }
+                }
+            ]).toArray()
+            res.send(pastMatchData)
+        }
+        else if(req.body.time === 'recent')
+        {
+            currentDate.setDate(currentDate.getDate() - 7)
+            let recentMatchData =await db.aggregate([
+                {
+                    $addFields : {
+                        'dateString' : {$dateToString: {format:"%Y-%m-%d", date:"$date"}}
+                    }
+                },
+                {
+                    $match: {
+                        $and : [
+                            {
+                                dateString: {$lt : new Date().toISOString().substr(0,10)}
+                            },
+                            {
+                                dateString : {$gt: currentDate.toISOString().substr(0,10)}
+                            }
+                        ],
+                        type: req.body.type,
+                        country: req.body.country
+                    }
+                }
+            ]).toArray()
+            res.send(recentMatchData)
+        }
     }
 }

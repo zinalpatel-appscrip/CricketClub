@@ -19,4 +19,6 @@ router.put('/score', playersController.updateScore)
 
 router.get('/history', playersController.matchHistory)
 
+router.get('/matchdata', playersController.matchData)
+
 module.exports = router
